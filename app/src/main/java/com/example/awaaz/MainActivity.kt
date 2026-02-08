@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -28,8 +29,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
-import com.example.awaaz.audio.AudioRecorder
 import com.example.awaaz.audio.RecordingState
+import com.example.awaaz.audio.VoiceRecorder
 import com.example.awaaz.ui.theme.AwaazTheme
 
 class MainActivity : ComponentActivity() {
@@ -48,11 +49,73 @@ class MainActivity : ComponentActivity() {
 
 private const val PERMISSION_RECORD_AUDIO = Manifest.permission.RECORD_AUDIO
 
+/**
+ * Start Recording Button - Controls VoiceRecorder to begin recording.
+ */
+@Composable
+fun StartRecordingButton(
+    voiceRecorder: VoiceRecorder,
+    hasPermission: Boolean,
+    onPermissionRequest: () -> Unit,
+    onStateChange: (RecordingState) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Button(
+        onClick = {
+            if (!hasPermission) {
+                onPermissionRequest()
+                return@Button
+            }
+            
+            try {
+                val file = voiceRecorder.createOutputFile()
+                voiceRecorder.startRecording(file)
+                onStateChange(voiceRecorder.state)
+            } catch (e: Exception) {
+                onStateChange(RecordingState.Error(e.message ?: "Start failed"))
+            }
+        },
+        modifier = modifier,
+        colors = ButtonDefaults.buttonColors(
+            containerColor = MaterialTheme.colorScheme.primary
+        )
+    ) {
+        Text("Start Recording")
+    }
+}
+
+/**
+ * Stop Recording Button - Controls VoiceRecorder to stop recording.
+ */
+@Composable
+fun StopRecordingButton(
+    voiceRecorder: VoiceRecorder,
+    onStateChange: (RecordingState) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Button(
+        onClick = {
+            voiceRecorder.stopRecording()
+            onStateChange(voiceRecorder.state)
+        },
+        modifier = modifier,
+        colors = ButtonDefaults.buttonColors(
+            containerColor = MaterialTheme.colorScheme.error
+        )
+    ) {
+        Text("Stop Recording")
+    }
+}
+
 @Composable
 fun RecordingScreen(modifier: Modifier = Modifier) {
     val context = LocalContext.current
-    val recorder = remember { AudioRecorder(context.applicationContext) }
-    var uiState by remember { mutableStateOf<RecordingState>(recorder.state) }
+    
+    // Initialize VoiceRecorder - remember keeps it across recompositions
+    val voiceRecorder = remember { VoiceRecorder(context.applicationContext) }
+    
+    // Compose state that tracks the recording state for UI updates
+    var recordingState by remember { mutableStateOf<RecordingState>(voiceRecorder.state) }
 
     var hasPermission by remember {
         mutableStateOf(
@@ -64,7 +127,7 @@ fun RecordingScreen(modifier: Modifier = Modifier) {
         contract = ActivityResultContracts.RequestPermission()
     ) { granted ->
         hasPermission = granted
-        if (!granted) uiState = RecordingState.Error("Microphone permission denied")
+        if (!granted) recordingState = RecordingState.Error("Microphone permission denied")
     }
 
     fun requestMicrophonePermission() {
@@ -94,61 +157,54 @@ fun RecordingScreen(modifier: Modifier = Modifier) {
                 Text("Allow microphone")
             }
         } else {
+            // Display current recording state
             Text(
-            text = when (uiState) {
-                is RecordingState.Idle -> "Tap to start recording"
-                is RecordingState.Recording -> "Recording…"
-                is RecordingState.Stopped -> "Saved: ${(uiState as RecordingState.Stopped).filePath}"
-                is RecordingState.Error -> (uiState as RecordingState.Error).message
-            },
-            style = MaterialTheme.typography.bodyMedium
-        )
-        Spacer(modifier = Modifier.height(24.dp))
+                text = when (recordingState) {
+                    is RecordingState.Idle -> "Tap to start recording"
+                    is RecordingState.Recording -> "Recording…"
+                    is RecordingState.Stopped -> {
+                        val fileName = (recordingState as RecordingState.Stopped).filePath
+                            .substringAfterLast("/")
+                        "Saved: $fileName"
+                    }
+                    is RecordingState.Error -> (recordingState as RecordingState.Error).message
+                },
+                style = MaterialTheme.typography.bodyMedium
+            )
+            Spacer(modifier = Modifier.height(24.dp))
 
-        when (uiState) {
-            is RecordingState.Recording -> {
-                Button(
-                    onClick = {
-                        recorder.stopRecording()
-                        uiState = recorder.state
-                    }
-                ) {
-                    Text("Stop")
+            // Control buttons based on recording state
+            when (recordingState) {
+                is RecordingState.Recording -> {
+                    // Show stop button while recording
+                    StopRecordingButton(
+                        voiceRecorder = voiceRecorder,
+                        onStateChange = { recordingState = it }
+                    )
                 }
-            }
-            else -> {
-                Button(
-                    onClick = {
-                        if (ContextCompat.checkSelfPermission(context, PERMISSION_RECORD_AUDIO)
-                            != PackageManager.PERMISSION_GRANTED
+                else -> {
+                    // Show start button when idle or after error
+                    StartRecordingButton(
+                        voiceRecorder = voiceRecorder,
+                        hasPermission = hasPermission,
+                        onPermissionRequest = { requestMicrophonePermission() },
+                        onStateChange = { recordingState = it }
+                    )
+                    
+                    // Show reset button after recording stopped or error
+                    if (recordingState is RecordingState.Stopped || recordingState is RecordingState.Error) {
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Button(
+                            onClick = {
+                                voiceRecorder.reset()
+                                recordingState = RecordingState.Idle
+                            }
                         ) {
-                            requestMicrophonePermission()
-                            return@Button
+                            Text("Reset")
                         }
-                        try {
-                            val file = recorder.createOutputFile()
-                            recorder.startRecording(file)
-                            uiState = RecordingState.Recording
-                        } catch (e: Exception) {
-                            uiState = RecordingState.Error(e.message ?: "Start failed")
-                        }
-                    }
-                ) {
-                    Text("Start recording")
-                }
-                if (uiState is RecordingState.Stopped || uiState is RecordingState.Error) {
-                    Spacer(modifier = Modifier.height(12.dp))
-                    Button(
-                        onClick = {
-                            recorder.reset()
-                            uiState = RecordingState.Idle
-                        }
-                    ) {
-                        Text("Reset")
                     }
                 }
             }
-        }
         }
     }
 }
