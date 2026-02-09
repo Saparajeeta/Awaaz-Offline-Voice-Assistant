@@ -6,7 +6,6 @@ import org.vosk.LogLevel
 import org.vosk.Model
 import org.vosk.Recognizer
 import org.json.JSONObject
-import org.vosk.android.RecognitionListener
 import org.vosk.android.SpeechService
 import org.vosk.android.SpeechStreamService
 import org.vosk.android.StorageService
@@ -41,7 +40,7 @@ import java.util.concurrent.Executors
  * recognizer.release()
  * ```
  */
-class VoskSpeechRecognizer(private val context: Context) : RecognitionListener {
+class VoskSpeechRecognizer(private val context: Context) : org.vosk.android.RecognitionListener {
 
     companion object {
         /** Sample rate required by Vosk (Hz). */
@@ -226,7 +225,7 @@ class VoskSpeechRecognizer(private val context: Context) : RecognitionListener {
                     val service = SpeechStreamService(recognizer, fis, SAMPLE_RATE.toInt())
                     streamService = service
                     val resultText = StringBuilder()
-                    val listener = object : RecognitionListener {
+                    val listener = object : org.vosk.android.RecognitionListener {
                         private fun extractText(hypothesis: String?): String {
                             if (hypothesis.isNullOrBlank()) return ""
                             return try {

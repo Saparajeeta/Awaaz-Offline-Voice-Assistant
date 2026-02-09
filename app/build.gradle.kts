@@ -37,12 +37,20 @@ android {
     buildFeatures {
         compose = true
     }
+
+    // Exclude stub files that conflict with Vosk dependency
+    // The vosk stub files now contain only comments, so they won't generate any bytecode
+
+    // Exclude duplicate classes from vosk-android library
+    packaging {
+        exclude("META-INF/proguard/androidx-*.pro")
+    }
 }
 
 dependencies {
     // Vosk Android SDK for offline speech recognition
-    implementation("com.alphacephei:vosk-android:0.3.75@aar")
-    implementation("net.java.dev.jna:jna:5.18.1@aar")
+    implementation("com.alphacephei:vosk-android:0.3.75")
+    implementation("net.java.dev.jna:jna:5.18.1")
 
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
