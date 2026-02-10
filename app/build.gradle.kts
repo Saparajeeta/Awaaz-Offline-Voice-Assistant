@@ -50,7 +50,6 @@ android {
 dependencies {
     // Vosk Android SDK for offline speech recognition
     implementation("com.alphacephei:vosk-android:0.3.75")
-    implementation("net.java.dev.jna:jna:5.18.1")
 
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
