@@ -27,25 +27,45 @@ android {
             )
         }
     }
+
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
     }
+
     kotlinOptions {
         jvmTarget = "11"
     }
+
     buildFeatures {
         compose = true
     }
 
-    // Exclude stub files that conflict with Vosk dependency
-    // The vosk stub files now contain only comments, so they won't generate any bytecode
+    /**
+     * 🔥 CRITICAL — Prevent Vosk model compression
+     */
+    androidResources {
+        noCompress += listOf(
+            "am",
+            "conf",
+            "graph",
+            "ivector",
+            "model",
+            "fst",
+            "txt"
+        )
+    }
 
-    // Exclude duplicate classes from vosk-android library
+    /**
+     * Packaging fixes
+     */
     packaging {
-        exclude("META-INF/proguard/androidx-*.pro")
+        resources {
+            excludes += "META-INF/proguard/androidx-*.pro"
+        }
     }
 }
+
 
 dependencies {
     // Vosk Android SDK for offline speech recognition
